@@ -1,0 +1,104 @@
+'use client'
+
+import { useState } from 'react'
+import { TransactionList } from './TransactionList'
+import { TransactionForm } from './TransactionForm'
+import { Button } from '@/components/ui/button'
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+    DialogTrigger,
+} from "@/components/ui/dialog"
+import { PlusCircle } from 'lucide-react'
+import { Category } from '@prisma/client'
+
+interface TransactionManagerProps {
+    initialTransactions: any[]
+    categories: Category[]
+}
+
+export function TransactionManager({ initialTransactions, categories }: TransactionManagerProps) {
+    const [transactions, setTransactions] = useState(initialTransactions)
+    const [isCreateOpen, setIsCreateOpen] = useState(false)
+    const [editingTransaction, setEditingTransaction] = useState<any>(null)
+
+    const handleSuccess = () => {
+        setIsCreateOpen(false)
+        setEditingTransaction(null)
+        // In a real app we might re-fetch or use router.refresh() 
+        // asking the parent to refresh, but server actions revalidatePath 
+        // should handle the data refresh on next render if we used router.
+        // For now, let's assume the page refreshes or we force it.
+        // Actually, since this is client state `transactions`, we rely on parent re-rendering 
+        // or we call router.refresh().
+        window.location.reload() // MVP brute force refresh or use router
+    }
+
+    // Better way: use router.refresh() from next/navigation
+    // import { useRouter } from 'next/navigation'
+    // const router = useRouter()
+    // router.refresh() 
+
+    // Let's implement useRouter properly
+
+    return (
+        <div className="flex flex-col gap-6">
+            <div className="flex items-center justify-between">
+                <div>
+                    <h1 className="text-3xl font-bold tracking-tight">Transacciones</h1>
+                    <p className="text-muted-foreground">Gestiona tus ingresos y gastos.</p>
+                </div>
+
+                <Button onClick={() => setIsCreateOpen(true)}>
+                    <PlusCircle className="mr-2 h-4 w-4" />
+                    Nueva Transacción
+                </Button>
+
+                {/* Create Dialog */}
+                <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+                    <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                            <DialogTitle>Agregar Transacción</DialogTitle>
+                            <DialogDescription>
+                                Registra un nuevo movimiento financiero.
+                            </DialogDescription>
+                        </DialogHeader>
+                        <TransactionForm
+                            categories={categories}
+                            onSuccess={handleSuccess}
+                        />
+                    </DialogContent>
+                </Dialog>
+
+                {/* Edit Dialog */}
+                <Dialog open={!!editingTransaction} onOpenChange={(open) => !open && setEditingTransaction(null)}>
+                    <DialogContent className="sm:max-w-[425px]">
+                        <DialogHeader>
+                            <DialogTitle>Editar Transacción</DialogTitle>
+                            <DialogDescription>
+                                Modifica los detalles de la transacción.
+                            </DialogDescription>
+                        </DialogHeader>
+                        {editingTransaction && (
+                            <TransactionForm
+                                categories={categories}
+                                initialData={editingTransaction}
+                                onSuccess={handleSuccess}
+                            />
+                        )}
+                    </DialogContent>
+                </Dialog>
+            </div>
+
+            <div className="space-y-4">
+                <TransactionList
+                    transactions={initialTransactions} // Use props (server data)
+                    onEdit={(t) => setEditingTransaction(t)}
+                />
+            </div>
+        </div>
+    )
+}

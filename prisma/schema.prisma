@@ -1,0 +1,164 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id            String     @id @default(uuid())
+  email         String     @unique
+  nombre        String?
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+  
+  companies     Company[]
+  history       TransactionHistory[]
+  
+  @@map("users")
+}
+
+model Company {
+  id            String     @id @default(uuid())
+  userId        String     @map("user_id")
+  nombreEmpresa String     @map("nombre_empresa")
+  tipoNegocio   String?    @map("tipo_negocio")
+  moneda        String     @default("CLP")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+  
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transactions  Transaction[]
+  categories    Category[]
+  assets        Asset[]
+  settings      CompanySettings?
+  
+  @@index([userId])
+  @@map("companies")
+}
+
+model Transaction {
+  id            String     @id @default(uuid())
+  companyId     String     @map("company_id")
+  tipo          TipoTransaccion
+  fecha         DateTime?
+  fechaDocumento DateTime? @map("fecha_documento") // For Accrual Basis (Devengado)
+  monto         Decimal    @db.Decimal(15, 2)
+  monedaOriginal String    @default("CLP") @map("moneda_original") // "CLP", "USD"
+  montoOriginal Decimal?   @map("monto_original") @db.Decimal(15, 2)
+  tipoCambio    Decimal?   @map("tipo_cambio") @db.Decimal(10, 2)
+  descripcion   String
+  categoryId    String     @map("category_id")
+  metodoPago    String?    @map("metodo_pago")
+  comprobanteUrl String?   @map("comprobante_url")
+  afectoIva     Boolean    @default(false) @map("afecto_iva")
+  montoNeto     Decimal?   @map("monto_neto") @db.Decimal(15, 2)
+  montoIva      Decimal?   @map("monto_iva") @db.Decimal(15, 2)
+  status        TransactionStatus @default(COMPLETED)
+  history       TransactionHistory[]
+  notas         String?
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+  
+  company       Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  category      Category   @relation(fields: [categoryId], references: [id])
+  
+  @@index([companyId, fecha])
+  @@index([categoryId])
+  @@map("transactions")
+}
+
+model Category {
+  id              String     @id @default(uuid())
+  nombre          String
+  tipo            TipoTransaccion
+  cuentaContable  CuentaContable @map("cuenta_contable")
+  esSistema       Boolean    @default(false) @map("es_sistema")
+  companyId       String?    @map("company_id")
+  icono           String?
+  color           String?
+  createdAt       DateTime   @default(now()) @map("created_at")
+  
+  company         Company?   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions    Transaction[]
+  
+  @@index([companyId])
+  @@map("categories")
+}
+
+model Asset {
+  id                    String     @id @default(uuid())
+  companyId             String     @map("company_id")
+  nombre                String
+  valorCompra           Decimal    @map("valor_compra") @db.Decimal(15, 2)
+  fechaCompra           DateTime   @map("fecha_compra")
+  vidaUtilMeses         Int        @map("vida_util_meses")
+  depreciacionMensual   Decimal    @map("depreciacion_mensual") @db.Decimal(15, 2)
+  depreciacionAcumulada Decimal    @default(0) @map("depreciacion_acumulada") @db.Decimal(15, 2)
+  createdAt             DateTime   @default(now()) @map("created_at")
+  
+  company               Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  @@index([companyId])
+  @@map("assets")
+}
+
+model CompanySettings {
+  id                    String     @id @default(uuid())
+  companyId             String     @unique @map("company_id")
+  capitalInicial        Decimal    @map("capital_inicial") @db.Decimal(15, 2)
+  fechaInicioOps        DateTime   @map("fecha_inicio_operaciones")
+  regimenTributario     String?    @map("regimen_tributario")
+  tasaImpuesto          Decimal?   @map("tasa_impuesto") @db.Decimal(5, 2)
+  
+  company               Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  
+  @@map("company_settings")
+}
+
+enum TipoTransaccion {
+  INGRESO
+  GASTO
+}
+
+enum CuentaContable {
+  ACTIVO_CORRIENTE
+  ACTIVO_NO_CORRIENTE
+  PASIVO_CORRIENTE
+  PASIVO_NO_CORRIENTE
+  PATRIMONIO
+  INGRESO
+  COSTO_VENTA
+  GASTO_OPERACIONAL
+  GASTO_ADMINISTRATIVO
+  GASTO_FINANCIERO
+  OTRO
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+}
+
+model TransactionHistory {
+  id            String     @id @default(uuid())
+  transactionId String     @map("transaction_id")
+  userId        String     @map("user_id")
+  action        String     // "UPDATE", "DELETE"
+  details       Json
+  createdAt     DateTime   @default(now()) @map("created_at")
+
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  user          User        @relation(fields: [userId], references: [id])
+
+  @@index([transactionId])
+  @@map("transaction_history")
+}
