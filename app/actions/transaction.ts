@@ -273,8 +273,55 @@ export async function getTransactions() {
 }
 
 export async function getCategories() {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) return []
+
+    const company = await prisma.company.findFirst({
+        where: { userId: user.id },
+        select: { id: true }
+    })
+
+    if (!company) return []
+
     const categories = await prisma.category.findMany({
+        where: {
+            companyId: company.id
+        },
         orderBy: { nombre: 'asc' }
     })
     return categories
+}
+
+export async function createCategory(name: string, type: 'INGRESO' | 'GASTO', companyId: string) {
+    const category = await prisma.category.create({
+        data: {
+            nombre: name,
+            tipo: type,
+            cuentaContable: type === 'INGRESO' ? 'INGRESO' : 'GASTO_OPERACIONAL',
+            companyId: companyId,
+            icono: 'Tag',
+            color: '#9ca3af'
+        }
+    })
+    return category
+}
+
+export async function getCompanyProfile() {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) return null
+
+    const company = await prisma.company.findFirst({
+        where: { userId: user.id },
+        select: {
+            id: true,
+            type: true,
+            tier: true
+        }
+    })
+
+    return company
 }

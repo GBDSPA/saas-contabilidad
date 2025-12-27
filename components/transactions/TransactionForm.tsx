@@ -35,18 +35,56 @@ import {
 } from '@/components/ui/select'
 import { toast } from 'sonner'
 
+import { createTransaction, updateTransaction, createCategory } from '@/app/actions/transaction'
+import { Plus, X } from 'lucide-react'
+
 import { transactionSchema, type TransactionFormValues } from '@/lib/validations/transaction'
-import { createTransaction, updateTransaction } from '@/app/actions/transaction'
-import type { Category } from '@prisma/client'
+import type { Category, CompanyType } from '@prisma/client'
 
 interface TransactionFormProps {
     categories: Category[]
     onSuccess?: () => void
     initialData?: any
+    companyType?: CompanyType | string
+    companyId?: string
 }
 
-export function TransactionForm({ categories, onSuccess, initialData }: TransactionFormProps) {
+export function TransactionForm({ categories: initialCategories, onSuccess, initialData, companyType = 'BUSINESS', companyId }: TransactionFormProps) {
+    const [categories, setCategories] = useState<Category[]>(initialCategories)
+    const [isCreatingCategory, setIsCreatingCategory] = useState(false)
+    const [newCategoryName, setNewCategoryName] = useState('')
     const [isPending, setIsPending] = useState(false)
+    // ... (rest of state)
+
+    async function handleCreateCategory() {
+        if (!newCategoryName.trim()) return
+
+        try {
+            const currentType = form.getValues('tipo')
+            // Use props.companyId or fallback to initialData.companyId (if editing)
+            const targetCompanyId = companyId || initialData?.companyId
+
+            if (!targetCompanyId) {
+                toast.error("No se pudo identificar la empresa")
+                return
+            }
+
+            const newCat = await createCategory(newCategoryName, currentType, targetCompanyId)
+
+            setCategories(prev => [...prev, newCat])
+            form.setValue('categoryId', newCat.id)
+            setIsCreatingCategory(false)
+            setNewCategoryName('')
+            toast.success("Categoría creada")
+        } catch (error) {
+            toast.error("Error al crear categoría")
+        }
+    }
+
+    // ... (rest of component)
+    // WAIT. I need to fix the companyId issue before writing the component code. 
+    // I will check `TransactionManager` to see if I can pass companyId.
+
     const [isCalendarOpen, setIsCalendarOpen] = useState(false)
     const defaultDate = new Date()
 
@@ -254,52 +292,31 @@ export function TransactionForm({ categories, onSuccess, initialData }: Transact
                         )}
                     />
 
-                    <FormField
-                        control={form.control}
-                        name="status"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Estado</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                    <FormControl>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Selecciona estado" />
-                                        </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        <SelectItem value="COMPLETED">Pagado</SelectItem>
-                                        <SelectItem value="PENDING">Pendiente</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
+                    {companyType !== 'PERSONAL' && (
+                        <FormField
+                            control={form.control}
+                            name="status"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Estado</FormLabel>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Selecciona estado" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            <SelectItem value="COMPLETED">Pagado</SelectItem>
+                                            <SelectItem value="PENDING">Pendiente</SelectItem>
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    )}
 
-                    <FormField
-                        control={form.control}
-                        name="categoryId"
-                        render={({ field }) => (
-                            <FormItem>
-                                <FormLabel>Categoría</FormLabel>
-                                <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                    <FormControl>
-                                        <SelectTrigger>
-                                            <SelectValue placeholder="Selecciona una categoría" />
-                                        </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent>
-                                        {visibleCategories.map((category) => (
-                                            <SelectItem key={category.id} value={category.id}>
-                                                {category.nombre}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
+
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -309,7 +326,10 @@ export function TransactionForm({ categories, onSuccess, initialData }: Transact
                         render={({ field }) => (
                             <FormItem className="flex flex-col">
                                 <FormLabel>
-                                    {currentStatus === 'PENDING' ? 'Fecha Vencimiento (Estimada)' : 'Fecha Pago (Real)'}
+                                    {companyType === 'PERSONAL'
+                                        ? 'Fecha'
+                                        : (currentStatus === 'PENDING' ? 'Fecha Vencimiento (Estimada)' : 'Fecha Pago (Real)')
+                                    }
                                 </FormLabel>
                                 {currentStatus !== 'PENDING' && (
                                     <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
@@ -358,48 +378,50 @@ export function TransactionForm({ categories, onSuccess, initialData }: Transact
                         )}
                     />
 
-                    <FormField
-                        control={form.control}
-                        name="fechaDocumento"
-                        render={({ field }) => (
-                            <FormItem className="flex flex-col">
-                                <FormLabel>Fecha Emisión (IVA) <span className="text-xs text-muted-foreground font-normal">(Opcional)</span></FormLabel>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <FormControl>
-                                            <Button
-                                                variant={"outline"}
-                                                className={cn(
-                                                    "w-full pl-3 text-left font-normal",
-                                                    !field.value && "text-muted-foreground"
-                                                )}
-                                            >
-                                                {field.value ? (
-                                                    format(field.value, "dd MMM yyyy", { locale: es })
-                                                ) : (
-                                                    <span className="text-muted-foreground">Igual a fecha pago</span>
-                                                )}
-                                                <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                                            </Button>
-                                        </FormControl>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                        <Calendar
-                                            mode="single"
-                                            selected={field.value}
-                                            onSelect={field.onChange}
-                                            disabled={(date) =>
-                                                date > new Date() || date < new Date("1900-01-01")
-                                            }
-                                            locale={es}
-                                            initialFocus
-                                        />
-                                    </PopoverContent>
-                                </Popover>
-                                <FormMessage />
-                            </FormItem>
-                        )}
-                    />
+                    {companyType !== 'PERSONAL' && (
+                        <FormField
+                            control={form.control}
+                            name="fechaDocumento"
+                            render={({ field }) => (
+                                <FormItem className="flex flex-col">
+                                    <FormLabel>Fecha Emisión (IVA) <span className="text-xs text-muted-foreground font-normal">(Opcional)</span></FormLabel>
+                                    <Popover>
+                                        <PopoverTrigger asChild>
+                                            <FormControl>
+                                                <Button
+                                                    variant={"outline"}
+                                                    className={cn(
+                                                        "w-full pl-3 text-left font-normal",
+                                                        !field.value && "text-muted-foreground"
+                                                    )}
+                                                >
+                                                    {field.value ? (
+                                                        format(field.value, "dd MMM yyyy", { locale: es })
+                                                    ) : (
+                                                        <span className="text-muted-foreground">Igual a fecha pago</span>
+                                                    )}
+                                                    <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                                                </Button>
+                                            </FormControl>
+                                        </PopoverTrigger>
+                                        <PopoverContent className="w-auto p-0" align="start">
+                                            <Calendar
+                                                mode="single"
+                                                selected={field.value}
+                                                onSelect={field.onChange}
+                                                disabled={(date) =>
+                                                    date > new Date() || date < new Date("1900-01-01")
+                                                }
+                                                locale={es}
+                                                initialFocus
+                                            />
+                                        </PopoverContent>
+                                    </Popover>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 p-4 border rounded-md bg-gray-50/50">
@@ -483,42 +505,46 @@ export function TransactionForm({ categories, onSuccess, initialData }: Transact
                 )}
 
                 {/* VAT (IVA) Section */}
-                <div className="flex items-center space-x-2 py-2">
-                    <FormField
-                        control={form.control}
-                        name="afectoIva"
-                        render={({ field }) => (
-                            <FormItem className="flex flex-row items-center space-x-3 space-y-0 p-2">
-                                <FormControl>
-                                    <Checkbox
-                                        checked={field.value}
-                                        onCheckedChange={field.onChange}
-                                    />
-                                </FormControl>
-                                <div className="space-y-1 leading-none">
-                                    <FormLabel>
-                                        ¿Afecto a IVA? (19%)
-                                    </FormLabel>
-                                    <FormDescription>
-                                        Se calculará el Neto y el IVA automáticamente.
-                                    </FormDescription>
-                                </div>
-                            </FormItem>
-                        )}
-                    />
-                </div>
+                {companyType !== 'PERSONAL' && (
+                    <>
+                        <div className="flex items-center space-x-2 py-2">
+                            <FormField
+                                control={form.control}
+                                name="afectoIva"
+                                render={({ field }) => (
+                                    <FormItem className="flex flex-row items-center space-x-3 space-y-0 p-2">
+                                        <FormControl>
+                                            <Checkbox
+                                                checked={field.value}
+                                                onCheckedChange={field.onChange}
+                                            />
+                                        </FormControl>
+                                        <div className="space-y-1 leading-none">
+                                            <FormLabel>
+                                                ¿Afecto a IVA? (19%)
+                                            </FormLabel>
+                                            <FormDescription>
+                                                Se calculará el Neto y el IVA automáticamente.
+                                            </FormDescription>
+                                        </div>
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
 
-                {afectoIva && currentMonto > 0 && (
-                    <div className="grid grid-cols-2 gap-4 text-sm bg-muted/50 p-2 rounded mb-4">
-                        <div>
-                            <span className="text-muted-foreground">Neto:</span>
-                            <span className="font-mono ml-2">${Math.round(currentMonto / 1.19).toLocaleString('es-CL')}</span>
-                        </div>
-                        <div>
-                            <span className="text-muted-foreground">IVA (19%):</span>
-                            <span className="font-mono ml-2">${Math.round(currentMonto - (currentMonto / 1.19)).toLocaleString('es-CL')}</span>
-                        </div>
-                    </div>
+                        {afectoIva && currentMonto > 0 && (
+                            <div className="grid grid-cols-2 gap-4 text-sm bg-muted/50 p-2 rounded mb-4">
+                                <div>
+                                    <span className="text-muted-foreground">Neto:</span>
+                                    <span className="font-mono ml-2">${Math.round(currentMonto / 1.19).toLocaleString('es-CL')}</span>
+                                </div>
+                                <div>
+                                    <span className="text-muted-foreground">IVA (19%):</span>
+                                    <span className="font-mono ml-2">${Math.round(currentMonto - (currentMonto / 1.19)).toLocaleString('es-CL')}</span>
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
 
                 <FormField
@@ -526,6 +552,68 @@ export function TransactionForm({ categories, onSuccess, initialData }: Transact
                     name="monto"
                     render={({ field }) => <input type="hidden" {...field} value={(field.value as number) || 0} />}
                 />
+
+                {/* New Category Location */}
+                <div className="space-y-2">
+                    <FormField
+                        control={form.control}
+                        name="categoryId"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Categoría</FormLabel>
+                                {isCreatingCategory ? (
+                                    <div className="flex gap-2">
+                                        <Input
+                                            value={newCategoryName}
+                                            onChange={(e) => setNewCategoryName(e.target.value)}
+                                            placeholder="Nombre nueva categoría..."
+                                        />
+                                        <Button type="button" size="icon" onClick={handleCreateCategory}>
+                                            <Plus className="h-4 w-4" />
+                                        </Button>
+                                        <Button type="button" size="icon" variant="ghost" onClick={() => setIsCreatingCategory(false)}>
+                                            <X className="h-4 w-4" />
+                                        </Button>
+                                    </div>
+                                ) : (
+                                    <Select
+                                        onValueChange={(val) => {
+                                            if (val === 'NEW_CATEGORY') {
+                                                setIsCreatingCategory(true)
+                                            } else {
+                                                field.onChange(val)
+                                            }
+                                        }}
+                                        defaultValue={field.value}
+                                        value={field.value}
+                                    >
+                                        <FormControl>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Selecciona una categoría" />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            {visibleCategories.map((category) => (
+                                                <SelectItem key={category.id} value={category.id}>
+                                                    {category.nombre}
+                                                </SelectItem>
+                                            ))}
+                                            {companyType === 'PERSONAL' && (
+                                                <>
+                                                    <div className="h-px bg-muted my-1" />
+                                                    <SelectItem value="NEW_CATEGORY" className="text-blue-600 font-medium cursor-pointer">
+                                                        + Crear "{currentType === 'INGRESO' ? 'Ingreso' : 'Gasto'}" Personalizado
+                                                    </SelectItem>
+                                                </>
+                                            )}
+                                        </SelectContent>
+                                    </Select>
+                                )}
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                </div>
 
                 <FormField
                     control={form.control}
@@ -540,8 +628,6 @@ export function TransactionForm({ categories, onSuccess, initialData }: Transact
                         </FormItem>
                     )}
                 />
-
-                {/* Category field moved up */}
 
                 <Button type="submit" className="w-full" disabled={isPending}>
                     {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}

@@ -13,14 +13,16 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog"
 import { PlusCircle } from 'lucide-react'
-import { Category } from '@prisma/client'
+import { Category, CompanyType } from '@prisma/client'
 
 interface TransactionManagerProps {
     initialTransactions: any[]
     categories: Category[]
+    companyType: CompanyType | string
+    companyId?: string
 }
 
-export function TransactionManager({ initialTransactions, categories }: TransactionManagerProps) {
+export function TransactionManager({ initialTransactions, categories, companyType, companyId }: TransactionManagerProps) {
     const [transactions, setTransactions] = useState(initialTransactions)
     const [isCreateOpen, setIsCreateOpen] = useState(false)
     const [editingTransaction, setEditingTransaction] = useState<any>(null)
@@ -28,21 +30,8 @@ export function TransactionManager({ initialTransactions, categories }: Transact
     const handleSuccess = () => {
         setIsCreateOpen(false)
         setEditingTransaction(null)
-        // In a real app we might re-fetch or use router.refresh() 
-        // asking the parent to refresh, but server actions revalidatePath 
-        // should handle the data refresh on next render if we used router.
-        // For now, let's assume the page refreshes or we force it.
-        // Actually, since this is client state `transactions`, we rely on parent re-rendering 
-        // or we call router.refresh().
-        window.location.reload() // MVP brute force refresh or use router
+        window.location.reload()
     }
-
-    // Better way: use router.refresh() from next/navigation
-    // import { useRouter } from 'next/navigation'
-    // const router = useRouter()
-    // router.refresh() 
-
-    // Let's implement useRouter properly
 
     return (
         <div className="flex flex-col gap-6">
@@ -69,6 +58,8 @@ export function TransactionManager({ initialTransactions, categories }: Transact
                         <TransactionForm
                             categories={categories}
                             onSuccess={handleSuccess}
+                            companyType={companyType}
+                            companyId={companyId}
                         />
                     </DialogContent>
                 </Dialog>
@@ -87,6 +78,8 @@ export function TransactionManager({ initialTransactions, categories }: Transact
                                 categories={categories}
                                 initialData={editingTransaction}
                                 onSuccess={handleSuccess}
+                                companyType={companyType}
+                                companyId={companyId}
                             />
                         )}
                     </DialogContent>
@@ -95,7 +88,7 @@ export function TransactionManager({ initialTransactions, categories }: Transact
 
             <div className="space-y-4">
                 <TransactionList
-                    transactions={initialTransactions} // Use props (server data)
+                    transactions={initialTransactions}
                     onEdit={(t) => setEditingTransaction(t)}
                 />
             </div>

@@ -41,6 +41,9 @@ model Company {
   assets        Asset[]
   settings      CompanySettings?
   
+  type          CompanyType       @default(BUSINESS)
+  tier          SubscriptionTier  @default(FREE)
+  
   @@index([userId])
   @@map("companies")
 }
@@ -161,4 +164,14 @@ model TransactionHistory {
 
   @@index([transactionId])
   @@map("transaction_history")
+}
+
+enum CompanyType {
+  BUSINESS
+  PERSONAL
+}
+
+enum SubscriptionTier {
+  FREE
+  PRO
 }
