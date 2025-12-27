@@ -37,7 +37,7 @@ import { toast } from 'sonner'
 
 import { transactionSchema, type TransactionFormValues } from '@/lib/validations/transaction'
 import { createTransaction, updateTransaction } from '@/app/actions/transaction'
-import { Category } from '@prisma/client'
+import type { Category } from '@prisma/client'
 
 interface TransactionFormProps {
     categories: Category[]
