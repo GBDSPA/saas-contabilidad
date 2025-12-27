@@ -262,7 +262,7 @@ export async function getTransactions() {
         take: 50
     })
 
-    return transactions.map((t) => ({
+    return transactions.map((t: any) => ({
         ...t,
         monto: Number(t.monto),
         montoOriginal: t.montoOriginal ? Number(t.montoOriginal) : null,
